@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Sorter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&display=swap');
+
+  :root {
+    --bg: #f5f0e8;
+    --paper: #faf7f2;
+    --ink: #1a1409;
+    --ink-light: #4a3f2a;
+    --ink-faint: #8a7a5a;
+    --red: #8b2500;
+    --gold: #8b6914;
+    --blue: #1a3050;
+    --green: #1a4030;
+    --border: #c8bfa0;
+    --shadow: rgba(26,20,9,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Source Serif 4', Georgia, serif;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 28px 40px 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.6rem;
+    font-weight: 400;
+    letter-spacing: 0.03em;
+  }
+
+  header p {
+    font-size: 0.85rem;
+    color: #a09080;
+    font-style: italic;
+    flex: 1;
+    min-width: 200px;
+  }
+
+  /* ── INSTRUCTIONS ── */
+  .instructions {
+    background: var(--paper);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 40px;
+    font-size: 0.88rem;
+    color: var(--ink-light);
+    line-height: 1.6;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .instructions strong { color: var(--ink); }
+
+  .phase-indicator {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .phase-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .phase-dot.active { background: var(--gold); }
+  .phase-dot.done { background: var(--ink-faint); }
+
+  /* ── MAIN LAYOUT ── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    min-height: calc(100vh - 120px);
+  }
+
+  /* ── DOCUMENTS AREA ── */
+  .documents-area {
+    padding: 32px 40px;
+    border-right: 1px solid var(--border);
+  }
+
+  .area-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 20px;
+  }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── DOCUMENT CARD ── */
+  .doc-card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--border);
+    padding: 18px 20px;
+    cursor: grab;
+    position: relative;
+    transition: box-shadow 0.2s, transform 0.15s;
+    user-select: none;
+    line-height: 1.55;
+  }
+
+  .doc-card:hover {
+    box-shadow: 0 4px 16px var(--shadow);
+    transform: translateY(-2px);
+  }
+
+  .doc-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    transform: rotate(1.5deg) scale(1.03);
+    box-shadow: 0 12px 40px var(--shadow);
+    z-index: 1000;
+  }
+
+  .doc-card.assigned {
+    opacity: 0.55;
+    border-top-color: var(--ink-faint);
+  }
+
+  .doc-card.revealed {
+    border-top-color: var(--gold) !important;
+    background: #fdf9f0;
+  }
+
+  .card-text {
+    font-size: 0.82rem;
+    color: var(--ink);
+    font-style: italic;
+    margin-bottom: 12px;
+  }
+
+  .card-id {
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    font-family: 'Source Serif 4', serif;
+    font-style: normal;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .card-reveal {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    font-style: normal;
+    color: var(--red);
+    line-height: 1.5;
+  }
+
+  .card-reveal.show { display: block; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .sidebar .area-label { margin-bottom: 8px; }
+
+  /* ── GROUP ZONE ── */
+  .group-zone {
+    background: var(--paper);
+    border: 1.5px dashed var(--border);
+    border-radius: 2px;
+    min-height: 80px;
+    padding: 14px 16px;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .group-zone.drag-over {
+    border-color: var(--gold);
+    background: #fdf8ee;
+  }
+
+  .group-zone.has-cards {
+    border-style: solid;
+    border-color: var(--border);
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .group-name {
+    font-size: 0.78rem;
+    font-family: 'Playfair Display', serif;
+    color: var(--ink-light);
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    cursor: text;
+    padding: 2px 0;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .group-name:focus {
+    border-bottom-color: var(--gold);
+    color: var(--ink);
+  }
+
+  .group-name::placeholder { color: var(--ink-faint); font-style: italic; }
+
+  .group-cards-mini {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .mini-card {
+    background: var(--border);
+    color: var(--ink);
+    font-size: 0.65rem;
+    padding: 2px 7px;
+    letter-spacing: 0.04em;
+    font-family: 'Source Serif 4', serif;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-transform: uppercase;
+  }
+
+  .mini-card:hover { background: var(--ink-faint); color: var(--bg); }
+
+  .add-group-btn {
+    background: transparent;
+    border: 1.5px dashed var(--border);
+    color: var(--ink-faint);
+    font-family: 'Source Serif 4', serif;
+    font-size: 0.8rem;
+    padding: 10px;
+    cursor: pointer;
+    width: 100%;
+    transition: border-color 0.2s, color 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .add-group-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── UNASSIGNED DROP ── */
+  .unassigned-zone {
+    background: transparent;
+    border: 1.5px dashed transparent;
+    padding: 6px;
+    min-height: 40px;
+    transition: border-color 0.2s;
+  }
+  .unassigned-zone.drag-over {
+    border-color: var(--ink-faint);
+  }
+
+  /* ── CONTROLS ── */
+  .controls {
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn {
+    font-family: 'Source Serif 4', serif;
+    font-size: 0.82rem;
+    padding: 10px 16px;
+    border: 1.5px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.15s, color 0.15s;
+    text-align: left;
+  }
+
+  .btn:hover { background: var(--ink); color: var(--bg); }
+  .btn.primary { background: var(--ink); color: var(--bg); }
+  .btn.primary:hover { background: var(--ink-light); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn:disabled:hover { background: transparent; color: var(--ink); }
+
+  /* ── REVEAL PANEL ── */
+  .reveal-panel {
+    display: none;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 28px 40px;
+    border-top: 1px solid var(--ink-faint);
+  }
+
+  .reveal-panel.show { display: block; }
+
+  .reveal-panel h2 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    color: #c8b890;
+  }
+
+  .reveal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .reveal-item {
+    border: 1px solid #3a3020;
+    padding: 14px 16px;
+  }
+
+  .reveal-item .doc-id {
+    font-size: 0.68rem;
+    color: #a09070;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .reveal-item .doc-source {
+    font-size: 0.82rem;
+    color: #c8b890;
+    font-style: italic;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  .reveal-item .doc-date {
+    font-size: 0.72rem;
+    color: #6a5a3a;
+  }
+
+  .prompt-box {
+    background: #2a200a;
+    border-left: 3px solid var(--gold);
+    padding: 16px 20px;
+    font-style: italic;
+    font-size: 0.9rem;
+    color: #c8b890;
+    line-height: 1.65;
+    max-width: 680px;
+  }
+
+  /* ── CLASS VIEW ── */
+  .class-comparison {
+    display: none;
+    padding: 28px 40px;
+    background: #f0ebe0;
+    border-top: 1px solid var(--border);
+  }
+  .class-comparison.show { display: block; }
+
+  .class-comparison h3 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    margin-bottom: 16px;
+    font-size: 1rem;
+    color: var(--ink-light);
+  }
+
+  .class-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+
+  .class-group {
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+    background: var(--paper);
+    min-width: 180px;
+  }
+
+  .class-group-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+
+  .class-group-cards {
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    line-height: 1.8;
+  }
+
+  /* ── QUESTION PHASE ── */
+  .question-phase {
+    display: none;
+    padding: 28px 40px;
+    border-top: 1px solid var(--border);
+    background: var(--paper);
+  }
+  .question-phase.show { display: block; }
+
+  .question-phase h3 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-size: 1rem;
+    margin-bottom: 20px;
+    color: var(--ink-light);
+    font-style: italic;
+  }
+
+  .questions-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .question-item {
+    border-left: 3px solid var(--border);
+    padding-left: 16px;
+    font-size: 0.88rem;
+    color: var(--ink-light);
+    line-height: 1.65;
+    font-style: italic;
+  }
+
+  .question-item strong {
+    display: block;
+    font-style: normal;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    margin-bottom: 4px;
+  }
+
+  /* ── DRAG GHOST ── */
+  .drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.9;
+    transform: rotate(2deg);
+    width: 240px;
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    main { grid-template-columns: 1fr; }
+    .sidebar { border-top: 1px solid var(--border); }
+    .documents-area { padding: 20px; }
+    header { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Document Sorter</h1>
+  <p>Arrange these excerpts into groups. There are no correct groups. Name each group yourself.</p>
+  <div class="phase-indicator" id="phaseIndicator">
+    <div class="phase-dot active" id="dot1"></div>
+    <div class="phase-dot" id="dot2"></div>
+    <div class="phase-dot" id="dot3"></div>
+    <span style="font-size:0.75rem; color:#a09080; margin-left:4px;" id="phaseLabel">Sorting</span>
+  </div>
+</header>
+
+<div class="instructions" id="instructionBar">
+  <span><strong>Drag</strong> each card into a group on the right. <strong>Click a group name</strong> to rename it. <strong>Click a mini-card</strong> in a group to return it to the main area.</span>
+  <span style="color:var(--ink-faint); font-size:0.78rem;">All 18 documents must be sorted before you can reveal.</span>
+</div>
+
+<main>
+  <div class="documents-area">
+    <div class="area-label">Documents — unsorted</div>
+    <div class="cards-grid" id="cardsGrid"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="area-label">Your groups</div>
+    <div id="groupsContainer"></div>
+    <button class="add-group-btn" id="addGroupBtn" onclick="addGroup()">+ Add a group</button>
+    <div class="controls">
+      <button class="btn primary" id="revealBtn" disabled onclick="revealAll()">Reveal sources</button>
+      <button class="btn" id="compareBtn" style="display:none" onclick="showComparison()">See class comparison</button>
+      <button class="btn" id="questionsBtn" style="display:none" onclick="showQuestions()">Discussion questions →</button>
+    </div>
+  </div>
+</main>
+
+<div class="reveal-panel" id="revealPanel">
+  <h2>What these documents are</h2>
+  <div class="reveal-grid" id="revealGrid"></div>
+  <div class="prompt-box">
+    Look at your groups. Now that you know what each document is: does that change how you would sort them? Which groupings feel more accurate now, and which feel wrong? What did you group together that surprised you?
+  </div>
+</div>
+
+<div class="question-phase" id="questionPhase">
+  <h3>Questions that cannot be answered quickly</h3>
+  <div class="questions-list">
+    <div class="question-item"><strong>For any two documents you grouped together</strong>Is this the same thing? What would it mean if it were?</div>
+    <div class="question-item"><strong>For any two documents you did not group together</strong>What would you have to believe for these to belong in the same group?</div>
+    <div class="question-item"><strong>About your group names</strong>What does the name you chose reveal about what you were sorting by?</div>
+    <div class="question-item"><strong>About the people who wrote these</strong>What did each writer think they were doing? What did they think was true about the world?</div>
+    <div class="question-item"><strong>About professional language</strong>Several of these documents are written in neutral, administrative, or professional registers. What does that register do?</div>
+    <div class="question-item"><strong>About time</strong>Some of these documents span five centuries. Does that matter? What changes? What doesn't?</div>
+  </div>
+</div>
+
+<div class="class-comparison" id="classComparison">
+  <h3>How this group sorted — points of disagreement</h3>
+  <div id="classGroupsDisplay"></div>
+  <p style="margin-top:16px; font-size:0.82rem; color:var(--ink-faint); font-style:italic;">The disagreements are the conversation. Where did different people draw the lines? Why?</p>
+</div>
+
+<script>
+const DOCUMENTS = [
+  {
+    id: "A",
+    text: "They brought us parrots and balls of cotton and spears and many other things... They willingly traded everything they owned. They would make fine servants. With fifty men we could subjugate them all and make them do whatever we want.",
+    source: "Christopher Columbus, ship's log",
+    date: "1492",
+    context: "Columbus writing to the Spanish court about the Arawak people of the Bahamas."
+  },
+  {
+    id: "B",
+    text: "Detrimental influences — proximity to coloured area. Infiltration of lower grade population. Not recommended for mortgage lending.",
+    source: "HOLC residential security assessor's field notes",
+    date: "Detroit, 1938",
+    context: "Home Owners' Loan Corporation. These assessments determined which neighbourhoods received mortgage backing."
+  },
+  {
+    id: "C",
+    text: "In the province of Cicao on Haiti, he and his men ordered all persons fourteen years or older to collect a certain quantity of gold every three months. Indians found without a copper token had their hands cut off and bled to death.",
+    source: "Bartolomé de las Casas, History of the Indies",
+    date: "c. 1542",
+    context: "Las Casas was a Spanish priest who participated in the conquest of Cuba and became its most prominent critic."
+  },
+  {
+    id: "D",
+    text: "Every Indian, as a sign and symbol of the dominion which the sovereign exercises over that territory, is charged to pay tribute... Any Indian failing to do so shall be punished according to our will.",
+    source: "Spanish Royal Ordinance on tribute collection",
+    date: "1503",
+    context: "Issued by Queen Isabella. Established the encomienda system."
+  },
+  {
+    id: "E",
+    text: "Restricted to white occupancy by deed restrictions. Properties in good condition. Values stable. A good neighbourhood which should hold its value provided the present character is maintained.",
+    source: "HOLC Grade A neighbourhood description",
+    date: "Chicago, 1940",
+    context: "Grade A ('Best') neighbourhoods received full mortgage backing. Grade D ('Hazardous') neighbourhoods were redlined."
+  },
+  {
+    id: "F",
+    text: "The said Indians shall be made to work at whatever tasks are assigned to them... We grant to you, as the said encomendero, the right to demand service from them. In return you shall instruct them in the Catholic faith.",
+    source: "Spanish encomienda grant document",
+    date: "Hispaniola, 1510",
+    context: "Standard legal form for assigning Indigenous people to Spanish colonists as forced labour."
+  },
+  {
+    id: "G",
+    text: "An Indian is not a citizen of the United States. The Indian is a ward of the government... The Indian does not have the right to leave the reservation without permission of the agent.",
+    source: "U.S. Indian Affairs circular",
+    date: "1878",
+    context: "Issued by the Bureau of Indian Affairs following the passage of the Indian Appropriations Act."
+  },
+  {
+    id: "H",
+    text: "This neighbourhood is not recommended. Detrimental influences of a permanent nature include the concentration of Negro population. No change in this condition is to be expected.",
+    source: "HOLC area description, Grade D",
+    date: "Philadelphia, 1937",
+    context: "Grade D neighbourhoods were coloured red on the security maps — the origin of the term 'redlining.'"
+  },
+  {
+    id: "I",
+    text: "We are committed to building a diverse and inclusive workplace where all employees feel valued, respected, and able to bring their full selves to work. Diversity is our strength.",
+    source: "Corporate diversity statement",
+    date: "Fortune 500 company, 2021",
+    context: "Published in the company's annual report, the year after the death of George Floyd and widespread DEI initiatives."
+  },
+  {
+    id: "J",
+    text: "The Indian children should be removed from the tribal environment and educated in boarding schools where they can learn the English language, Christian values, and useful trades. Kill the Indian in him, and save the man.",
+    source: "Richard Henry Pratt, founder of the Carlisle Indian School",
+    date: "1892",
+    context: "Pratt delivered this speech at the National Conference of Charities and Correction. Carlisle became the model for 350+ similar schools."
+  },
+  {
+    id: "K",
+    text: "The condition of the Negro in America is not a problem to be solved but a structure to be managed... The purpose of this office is to facilitate the orderly administration of policy, not to adjudicate grievances.",
+    source: "Internal memo, U.S. Department of Housing and Urban Development",
+    date: "1968",
+    context: "Written shortly after the passage of the Fair Housing Act, which outlawed racial discrimination in housing."
+  },
+  {
+    id: "L",
+    text: "Let us in the name of the Holy Trinity go on sending all the slaves that can be sold.",
+    source: "Christopher Columbus, letter to the Spanish court",
+    date: "1496",
+    context: "Columbus had failed to find sufficient gold. He proposed a slave economy as an alternative dividend for Spanish investors."
+  },
+  {
+    id: "M",
+    text: "Washington Redskins: the name has been a part of our proud history for 80 years... We are committed to our team, our fans, and our legacy. Changing the name would dishonour those who came before us.",
+    source: "Washington NFL franchise statement",
+    date: "2014",
+    context: "Issued in response to increasing pressure to retire the name. The franchise retired the name in 2020."
+  },
+  {
+    id: "N",
+    text: "The Dawes Act provides for the allotment of lands in severalty to Indians on the various reservations... The surplus lands not so allotted shall be sold for the benefit of the United States.",
+    source: "U.S. General Allotment Act (Dawes Act)",
+    date: "1887",
+    context: "The Act reduced Indigenous land holdings by 90 million acres (about 65% of remaining tribal lands) between 1887 and 1934."
+  },
+  {
+    id: "O",
+    text: "Hip-hop culture is celebrated across the globe, but the communities that created it still face disinvestment, policing, and poverty. The music travels. The conditions stay.",
+    source: "Jeff Chang, Can't Stop Won't Stop",
+    date: "2005",
+    context: "Chang's history of hip hop documents the relationship between planned urban shrinkage and the culture that emerged from it."
+  },
+  {
+    id: "P",
+    text: "We acknowledge that this university stands on the unceded traditional territory of the Musqueam, Squamish, and Tsleil-Waututh Nations, and we are committed to reconciliation.",
+    source: "Canadian university land acknowledgement",
+    date: "2019",
+    context: "Land acknowledgements became standard practice at Canadian universities and government events in the 2010s."
+  },
+  {
+    id: "Q",
+    text: "The scalps of Indians, male and female, above the age of twelve years shall each be valued at forty shillings. For every English captive so rescued, fifty pounds.",
+    source: "Massachusetts Bay Colony scalp bounty proclamation",
+    date: "1694",
+    context: "Colonial governments across New England offered bounties for Indigenous scalps as a privatised mechanism of territorial expansion."
+  },
+  {
+    id: "R",
+    text: "We were unable to approve your mortgage application at this time. The decision was based on the debt-to-income ratio, property location risk assessment, and neighbourhood stability index.",
+    source: "Mortgage denial letter template",
+    date: "Chicago, 1962",
+    context: "Mortgage denials in Black and Latino neighbourhoods remained common decades after official redlining ended, using race-neutral language to produce the same outcomes."
+  }
+];
+
+let groups = [
+  { id: 1, name: "", cards: [] },
+  { id: 2, name: "", cards: [] },
+  { id: 3, name: "", cards: [] }
+];
+let groupCounter = 4;
+let draggedCard = null;
+let assigned = new Set();
+let revealed = false;
+
+function init() {
+  renderCards();
+  renderGroups();
+  updateRevealButton();
+}
+
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = '';
+  DOCUMENTS.forEach(doc => {
+    if (assigned.has(doc.id)) return;
+    const card = makeCard(doc);
+    grid.appendChild(card);
+  });
+}
+
+function makeCard(doc, mini = false) {
+  const card = document.createElement('div');
+  card.className = 'doc-card';
+  card.dataset.id = doc.id;
+  if (assigned.has(doc.id)) card.classList.add('assigned');
+  if (revealed) card.classList.add('revealed');
+
+  card.innerHTML = `
+    <div class="card-text">${doc.text}</div>
+    <div class="card-id">Document ${doc.id}</div>
+    ${revealed ? `<div class="card-reveal show"><strong>${doc.source}</strong><br>${doc.date}<br><span style="color:var(--ink-faint);font-size:0.72rem">${doc.context}</span></div>` : ''}
+  `;
+
+  card.addEventListener('dragstart', e => {
+    draggedCard = doc.id;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', doc.id);
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    draggedCard = null;
+  });
+  card.draggable = true;
+
+  return card;
+}
+
+function renderGroups() {
+  const container = document.getElementById('groupsContainer');
+  container.innerHTML = '';
+  groups.forEach(g => {
+    container.appendChild(makeGroupZone(g));
+  });
+}
+
+function makeGroupZone(group) {
+  const zone = document.createElement('div');
+  zone.className = 'group-zone' + (group.cards.length > 0 ? ' has-cards' : '');
+  zone.dataset.groupId = group.id;
+
+  const header = document.createElement('div');
+  header.className = 'group-header';
+
+  const nameInput = document.createElement('input');
+  nameInput.className = 'group-name';
+  nameInput.placeholder = 'Name this group...';
+  nameInput.value = group.name;
+  nameInput.addEventListener('input', e => { group.name = e.target.value; });
+  nameInput.addEventListener('blur', e => { group.name = e.target.value; });
+  header.appendChild(nameInput);
+
+  const miniCards = document.createElement('div');
+  miniCards.className = 'group-cards-mini';
+  group.cards.forEach(id => {
+    const doc = DOCUMENTS.find(d => d.id === id);
+    const mini = document.createElement('span');
+    mini.className = 'mini-card';
+    mini.textContent = `Doc ${id}`;
+    mini.title = doc ? doc.text.substring(0, 80) + '...' : '';
+    mini.addEventListener('click', () => removeFromGroup(id, group.id));
+    miniCards.appendChild(mini);
+  });
+
+  zone.appendChild(header);
+  zone.appendChild(miniCards);
+
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) addToGroup(id, group.id);
+  });
+
+  return zone;
+}
+
+function addToGroup(cardId, groupId) {
+  // Remove from any existing group
+  groups.forEach(g => {
+    g.cards = g.cards.filter(id => id !== cardId);
+  });
+  const group = groups.find(g => g.id === groupId);
+  if (group && !group.cards.includes(cardId)) {
+    group.cards.push(cardId);
+    assigned.add(cardId);
+  }
+  renderCards();
+  renderGroups();
+  updateRevealButton();
+}
+
+function removeFromGroup(cardId, groupId) {
+  const group = groups.find(g => g.id === groupId);
+  if (group) {
+    group.cards = group.cards.filter(id => id !== cardId);
+    assigned.delete(cardId);
+  }
+  renderCards();
+  renderGroups();
+  updateRevealButton();
+}
+
+function addGroup() {
+  groups.push({ id: groupCounter++, name: "", cards: [] });
+  renderGroups();
+}
+
+function updateRevealButton() {
+  const btn = document.getElementById('revealBtn');
+  const total = DOCUMENTS.length;
+  const sortedCount = assigned.size;
+  const allSorted = sortedCount >= total;
+  btn.disabled = !allSorted;
+  if (!allSorted) {
+    btn.textContent = `Reveal sources (${sortedCount}/${total} sorted)`;
+  } else {
+    btn.textContent = 'Reveal sources ↓';
+  }
+}
+
+function revealAll() {
+  revealed = true;
+  // Update phase
+  document.getElementById('dot1').className = 'phase-dot done';
+  document.getElementById('dot2').className = 'phase-dot active';
+  document.getElementById('phaseLabel').textContent = 'Revealed';
+
+  // Update instruction bar
+  document.getElementById('instructionBar').innerHTML = `
+    <span>Sources are now shown on each card. Look at your groups. Does knowing the source change anything?</span>
+    <span style="color:var(--ink-faint);font-size:0.78rem;">You can still move cards between groups.</span>
+  `;
+
+  // Build reveal panel
+  const grid = document.getElementById('revealGrid');
+  grid.innerHTML = '';
+  DOCUMENTS.forEach(doc => {
+    const item = document.createElement('div');
+    item.className = 'reveal-item';
+    item.innerHTML = `
+      <div class="doc-id">Document ${doc.id}</div>
+      <div class="doc-source">${doc.source}</div>
+      <div class="doc-date">${doc.date}</div>
+      <div style="font-size:0.72rem;color:#6a5a3a;margin-top:6px;line-height:1.5">${doc.context}</div>
+    `;
+    grid.appendChild(item);
+  });
+
+  document.getElementById('revealPanel').classList.add('show');
+  document.getElementById('compareBtn').style.display = 'block';
+  document.getElementById('questionsBtn').style.display = 'block';
+
+  // Re-render cards with reveals
+  renderCards();
+  renderGroups();
+
+  document.getElementById('revealPanel').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showComparison() {
+  document.getElementById('dot2').className = 'phase-dot done';
+  document.getElementById('dot3').className = 'phase-dot active';
+  document.getElementById('phaseLabel').textContent = 'Compare';
+
+  const display = document.getElementById('classGroupsDisplay');
+  display.innerHTML = '';
+
+  const container = document.createElement('div');
+  container.className = 'class-groups';
+
+  groups.filter(g => g.cards.length > 0).forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'class-group';
+    const name = g.name || '(unnamed group)';
+    div.innerHTML = `
+      <div class="class-group-name">${name}</div>
+      <div class="class-group-cards">${g.cards.map(id => {
+        const doc = DOCUMENTS.find(d => d.id === id);
+        return `<span style="display:block">Doc ${id} — ${doc ? doc.source.split(',')[0] : ''}</span>`;
+      }).join('')}</div>
+    `;
+    container.appendChild(div);
+  });
+
+  display.appendChild(container);
+
+  const comparison = document.getElementById('classComparison');
+  comparison.classList.add('show');
+  comparison.scrollIntoView({ behavior: 'smooth' });
+}
+
+function showQuestions() {
+  const phase = document.getElementById('questionPhase');
+  phase.classList.add('show');
+  phase.scrollIntoView({ behavior: 'smooth' });
+}
+
+init();
+</script>
+</body>
+</html>
